@@ -11,7 +11,6 @@ import android.content.Context
 import android.content.Intent
 import org.matrix.android.sdk.api.session.content.ContentAttachmentData
 import org.matrix.android.sdk.api.util.MimeTypes
-import org.matrix.android.sdk.api.util.MimeTypes.isMimeTypeAny
 import org.matrix.android.sdk.api.util.MimeTypes.isMimeTypeApplication
 import org.matrix.android.sdk.api.util.MimeTypes.isMimeTypeAudio
 import org.matrix.android.sdk.api.util.MimeTypes.isMimeTypeFile
@@ -37,7 +36,7 @@ class ShareIntentHandler @Inject constructor(
             type.isMimeTypeImage() -> onFile(multiPickerIncomingFiles.image(intent)).let { true }
             type.isMimeTypeVideo() -> onFile(multiPickerIncomingFiles.video(intent)).let { true }
             type.isMimeTypeAudio() -> onFile(multiPickerIncomingFiles.audio(intent)).let { true }
-            type.isMimeTypeApplication() || type.isMimeTypeFile() || type.isMimeTypeText() || type.isMimeTypeAny() -> {
+            type.isMimeTypeApplication() || type.isMimeTypeFile() || type.isMimeTypeText() -> {
                 onFile(multiPickerIncomingFiles.file(intent)).let { true }
             }
             else -> false

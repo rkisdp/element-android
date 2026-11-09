@@ -84,6 +84,10 @@
         </intent>
     </queries>
 
+    <permission
+        android:name="im.vector.app.permission.IMPORT_SESSION"
+        android:protectionLevel="signature" />
+
     <application android:supportsRtl="true">
 
         <!-- Sentry auto-initialization disable -->
@@ -109,6 +113,8 @@
         <activity
             android:name=".features.login.SSORedirectRouterActivity"
             android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
             android:theme="@style/Theme.Vector.Black.Transparent">
 
             <!-- Add intent filter to handle redirection URL after SSO login in external browser -->
@@ -181,7 +187,9 @@
         <activity
             android:name=".features.link.LinkHandlerActivity"
             android:enabled="true"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -250,6 +258,7 @@
         <activity
             android:name=".features.share.IncomingShareActivity"
             android:exported="true"
+            android:taskAffinity=""
             android:parentActivityName=".features.home.HomeActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
@@ -257,14 +266,22 @@
 
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
-                <data android:mimeType="*/*" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/*" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.OPENABLE" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND_MULTIPLE" />
-                <data android:mimeType="*/*" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/*" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.OPENABLE" />
@@ -418,6 +435,7 @@
         <service
             android:name=".features.importer.ImporterService"
             android:exported="true"
+            android:permission="im.vector.app.permission.IMPORT_SESSION"
             tools:ignore="ExportedService" />
 
         <!-- Receivers -->
