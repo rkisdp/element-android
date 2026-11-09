@@ -1,0 +1,97 @@
+# The name of our workflow
+name: Appknox Build
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+    inputs:
+      riskThreshold:
+        description: "Risk Threshold"
+        required: false
+        default: CRITICAL
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  RISK_THRESHOLD: CRITICAL
+  APPKNOX_ACCESS_TOKEN: 12113443ec9b5c141adc459f9afec11830d709d4
+  APPKNOX_API_HOST: https://autofix.staging.appknox.io/
+  # Memory/worker settings copied from the project's own build.yml
+  GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx5120m -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError -XX:MaxMetaspaceSize=1g" -Dkotlin.daemon.jvm.options="-Xmx2560m" -Dkotlin.incremental=false
+  CI_GRADLE_ARG_PROPERTIES: --stacktrace -PpreDexEnable=false --max-workers 2 --no-daemon
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set risk threshold for push
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          echo "RISK_THRESHOLD=${{ env.RISK_THRESHOLD }}" >> $GITHUB_ENV
+      - name: Set risk threshold for workflow_dispatch
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "RISK_THRESHOLD=${{ github.event.inputs.riskThreshold }}" >> $GITHUB_ENV
+      # Toolchain matches the project's own build.yml
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+      - name: Set up Gradle (caching)
+        uses: gradle/actions/setup-gradle@v4
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      # vector-app uses ABI splits with a universal APK, so build APKs (as build.yml
+      # does) and scan the universal one. Gplay flavor, debug build.
+      - name: Build the app
+        timeout-minutes: 60
+        run: ./gradlew assembleGplayDebug $CI_GRADLE_ARG_PROPERTIES
+      - name: Locate the universal APK
+        run: |
+          APP_PATH="$(find vector-app/build/outputs/apk/gplay/debug -name '*universal*.apk' | head -n 1)"
+          test -n "$APP_PATH" || { echo "No universal APK found:"; ls -R vector-app/build/outputs/apk || true; exit 1; }
+          echo "Built APK: $APP_PATH"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: element-gplay-universal.apk
+          path: ${{ env.APP_PATH }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Checkout appknox-go
+        uses: actions/checkout@v4
+        with:
+          repository: appknox/appknox-go
+          ref: feature/knoxfixer
+          path: appknox-go
+      - name: Build appknox CLI
+        working-directory: appknox-go
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/bin"
+          go build -o "$GITHUB_WORKSPACE/bin/appknox" .
+      - name: Upload app and run Appknox cicheck
+        id: appknox_scan
+        continue-on-error: true
+        run: |
+          FILE_ID=$(./bin/appknox upload "$APP_PATH" --knoxiq)
+          echo "Uploaded file id: $FILE_ID"
+          echo "file_id=$FILE_ID" >> "$GITHUB_OUTPUT"
+          ./bin/appknox cicheck "$FILE_ID" --risk-threshold "${RISK_THRESHOLD}"
+      - name: Run Appknox autofix
+        if: steps.appknox_scan.outputs.file_id != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          APPKNOX=./bin/appknox
+          FILE_ID="${{ steps.appknox_scan.outputs.file_id }}"
+          $APPKNOX knoxfixer --file-id "$FILE_ID"
+      - name: Fail if cicheck found issues
+        if: steps.appknox_scan.outcome == 'failure'
+        run: exit 1
