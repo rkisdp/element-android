@@ -7,7 +7,9 @@
 
 package im.vector.app.features.share
 
+import android.content.ContentResolver
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import com.airbnb.mvrx.viewModel
@@ -18,6 +20,8 @@ import im.vector.app.core.platform.VectorBaseActivity
 import im.vector.app.databinding.ActivitySimpleBinding
 import im.vector.app.features.MainActivity
 import im.vector.app.features.start.StartAppViewModel
+import im.vector.lib.core.utils.compat.getParcelableArrayListExtraCompat
+import im.vector.lib.core.utils.compat.getParcelableExtraCompat
 
 @AndroidEntryPoint
 class IncomingShareActivity : VectorBaseActivity<ActivitySimpleBinding>() {
@@ -35,6 +39,19 @@ class IncomingShareActivity : VectorBaseActivity<ActivitySimpleBinding>() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val action = intent?.action
+        if ((action != Intent.ACTION_SEND && action != Intent.ACTION_SEND_MULTIPLE) || intent?.type == null) {
+            finish()
+            return
+        }
+        val streamUri = intent?.getParcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)
+        val streamUris = intent?.getParcelableArrayListExtraCompat<Uri>(Intent.EXTRA_STREAM)
+        if ((streamUri != null && streamUri.scheme != ContentResolver.SCHEME_CONTENT) ||
+                streamUris?.any { it.scheme != ContentResolver.SCHEME_CONTENT } == true) {
+            finish()
+            return
+        }
 
         if (startAppViewModel.shouldStartApp()) {
             launcher.launch(MainActivity.getIntentToInitSession(this))
